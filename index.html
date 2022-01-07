@@ -130,8 +130,14 @@
             </div>
 
             <!--閥值-->
+            
             <div class="labelLayout">
-                <label for="isovalueSlider">閥值:0/0</label>
+                <!-- <input type="range" class="form-control-range" min="0">
+				<div>
+					<a>閥值:</a><output>0</output><label name="isomax">/0</label>
+				</div> -->
+
+                <label for="isovalueSlider">閥值:</label><output>0</output><label>/255</label>
                 <input class="labelInput" id="isovalueSlider" type="range" name="settingForm" min=0 max=1000>
             </div>
 
@@ -139,8 +145,10 @@
             <div class="labelLayout">
                 <label>Texture:</label>
                 <select class="labelInput" name="settingForm">
-                    <option value=0 selected>option 1</option>
-                    <option value=1>option 2</option>
+                    <!-- <option value=0 selected>MeshBasicMaterial</option> -->
+                    <option value=0 selected>MeshPhongMaterial</option>
+                    <option value=1>MeshToonMaterial</option>
+                    <option value=2>MeshNormalMaterial</option>
                 </select>
             </div>
 
@@ -159,7 +167,7 @@
     <script src="js/scoreoutputer.min.js"></script>
     <script>
         // 建構子 ScoreOutputer 接受一個字串，該字串為 csv 的檔案名稱
-        var so = new ScoreOutputer("109114514");
+        var so = new ScoreOutputer("110598050");
         so.installCSS(function () {
             // 安裝 bootstrap 的 css，如果在 html 上方引用 bootstrap 5.1.1 的話就不用使用 installCSS ，注意一定要 bootstrap css 5.1.1 版
             // installCSS 接收一個 callback 當作參數，作為成功安裝 bootstrap css 的回呼函式
@@ -206,16 +214,19 @@
     </script>
     <script type="module">
 
+        import * as THREE from "./threejs/build/three.module.js";
         import { threejsViewer } from './jsm/threejsViewer.js'
         import { PLYExporter } from "./threejs/examples/jsm/exporters/PLYExporter.js";
         import { STLExporter } from "./threejs/examples/jsm/exporters/STLExporter.js";
+        import { MarchingCubes } from './threejs/examples/jsm/objects/MarchingCubes.js';
 
+        var output = document.querySelector('output');
         const fileRegex = /(\w+)_(\d+)x(\d+)x(\d+)_(\w+)\.*/;
 
         let modelView = new threejsViewer(document.body)// webgl畫布
-
+        let ctx, march;
         function init() {
-
+            
             // 收合按鈕:點擊事件設置
             let closeBtn = document.getElementById('closeBtn')
             let controlPanel = document.getElementById('controlPanel')
@@ -236,7 +247,6 @@
             })
 
             let elements = document.getElementsByName('settingForm')
-
             // RAW文件讀取
             elements[0].addEventListener('change', (evt) => {
                 let fr = new FileReader()
@@ -248,10 +258,13 @@
 
                 let file = evt.target.files[0]
 
+                output.innerHTML = 0
+                elements[2].value = 0
+                
                 let filename = file.name
 
-                filename = filename.spilt('.')
-                let values = filename.spilt('_')
+                filename = filename.split('.')
+                let values = filename[0].split('_')
 
                 let width = values[1]
                 let height = values[2]
@@ -259,18 +272,33 @@
                 let byte = values[4]
 
                 let max = Math.max(width, height, depth)
-
+                modelView.textureOption = elements[3].value
+                modelView.size = max
+                modelView.threshold = 55
+                
                 let data = null
                 let paddingData = null
 
                 fr.onload = () => {
                     let result = fr.result
+
                     if (byte == 'uint8') {
+
                         data = new Uint8Array(result)
 
-                        paddingData = new Uint8Array(max * max * max)
+                        modelView.newMesh((mesh) => {
+                            modelView.databuffer = data
+                            for (let i = 0; i < depth; i++) {
+                                for (let j = 0; j < height; j++) {
+                                    for (let k = 0; k < width; k++) {
+                                        let index = (i * height + j) * width + k
+                                        mesh.setCell(i, j, k, data[index])
+                                    }
+                                }
+                            }
+                        })
 
-                        modelView.loadData(paddingData, max, 75)
+                        alert('file name : ' + values[0] + '\nwidth=' + values[1] + ', height=' + values[2] + ', depth=' + values[3] + ', byte=' + values[4])
                     }
                 }
 
@@ -279,24 +307,36 @@
 
             // 模型資料下載
             elements[1].addEventListener('click', (evt) => {
+                let exporter = new STLExporter()
+                let mesh = modelView.download()
 
+                let result = exporter.parse(mesh, {binary: true})
+                let blob = new Blob([result], {type:"application/octet-stream"})
+
+                let dlLink = document.createElement('a')
+                dlLink.href = URL.createObjectURL(blob)
+                dlLink.download = 'model.stl'
+                /*---implement---*/
+                dlLink.click()
             })
 
             // 閥值設定
             elements[2].addEventListener('click', (evt) => {
-
+                let isovalue = Math.floor(evt.srcElement.value / 1000 * 255)
+                modelView.threshold = isovalue
+                output.innerHTML = isovalue;
+                modelView.updateMesh()
             })
 
             // 紋理設置
             elements[3].addEventListener('change', (evt) => {
-
+                modelView.textureOption = evt.srcElement.value
+                modelView.changeMaterial()
             })
 
             // 模型網格顯示
             elements[4].addEventListener('change', (evt) => {
-                let exporter = new STLExporter()
-                let mesh = modelView.download()
-                let result = exporter.parse(mesh, {binary: true})
+ 
             })
         }
 

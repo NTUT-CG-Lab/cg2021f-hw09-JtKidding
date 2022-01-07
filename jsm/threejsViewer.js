@@ -4,15 +4,21 @@ import { OrbitControls } from '../threejs/examples/jsm/controls/OrbitControls.js
 
 class threejsViewer {
     constructor(domElement) {
+        this.mesh=null
         this.size = 0
         this.databuffer = null
-        this.textureOption = 0
-        this.threshold = 75
+        this.textureOption = 1
+        this.threshold = 55
         this.enableLine = false
+        this.data = null
 
         let width = domElement.clientWidth;
         let height = domElement.clientHeight;
-
+        let materialList = {
+            0: new THREE.MeshPhongMaterial({ color: 0xbbddff}),
+            1: new THREE.MeshToonMaterial( { color: 0x112233}),
+            2: new THREE.MeshNormalMaterial()
+        }
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(width, height);
@@ -69,18 +75,47 @@ class threejsViewer {
             this.camera.updateProjectionMatrix();
         })
 
-        let mesh = null
-        this.loadData = (paddingData, size, isovalue) => {
-            mesh = new MarchingCubes(size)
-            mesh.material = new THREE.MeshPhongMaterial()
-            mesh.isovlation = isovalue
-            mesh.field = paddingData
+        this.newMesh = (callback) => {
 
-            this.scene.add(mesh)
+            let mesh = this.scene.getObjectByName('mesh')
+            if (mesh) {
+                this.scene.remove( mesh )
+            }
+
+            mesh = new MarchingCubes(this.size, materialList[this.textureOption])
+            mesh.name = 'mesh'
+            
+            mesh.isolation = this.threshold
+            mesh.position.set(0, 1, 0)
+            
+            callback(mesh)
+
+            this.mesh = mesh
+            this.scene.add(this.mesh)
+        }
+
+        this.updateMesh = () => {
+            // let data = this.mesh.field
+            
+            for (let i = 0; i < this.size; i++) {
+                for (let j = 0; j < this.size; j++) {
+                    for (let k = 0; k < this.size; k++) {
+                        let index = (i * this.size + j) * this.size + k
+                        if (this.databuffer[index] >= this.threshold)
+                            this.mesh.setCell(i, j, k, this.databuffer[index])
+                        else this.mesh.setCell(i, j, k, 0)
+                    }
+                }
+            }
+        }
+
+        this.changeMaterial = () => {
+            this.mesh.material = materialList[this.textureOption]
         }
 
         this.download = () => {
-            mesh.generateGeomaetry()
+            this.mesh.generateGeometry()
+            return this.mesh
         }
 
         this.renderScene()
